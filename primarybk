@@ -1,0 +1,53 @@
+int count_sleep {0};
+
+  #ifdef SERIAL_WRITE
+  if (is_client_1(chunk)) {
+    client_1.chunk = chunk;
+    client_1.chunk_index = chunkindex;
+    client_1.timestamp = get_timestamp(chunk);
+    client_1.data_received = true;
+  }
+  else {
+    client_2.chunk = chunk;
+    client_2.chunk_index = chunkindex;
+    client_2.timestamp = get_timestamp(chunk);
+    client_2.data_received = true;
+  }
+
+  if (client_1.data_received && client_2.data_received) {
+    // we now send the data as first+second
+    std::string data_to_send {};
+
+    if (client_1.timestamp < client_2.timestamp) {
+      std::cout <<" Line " << __LINE__ << " Inside the Primary.PushChunk2Replica" << std::endl;
+      result_A = gfs_secondary_A->PushChunk2Replica(filename, fhandle, client_1.chunk_index, client_1.chunk);
+      std::this_thread::sleep_for(50ms);
+      result_B = gfs_secondary_B->PushChunk2Replica(filename, fhandle, client_2.chunk_index, client_2.chunk);
+    }
+    else {
+      std::cout <<" Line " << __LINE__ << " Inside the Primary.PushChunk2Replica" << std::endl;
+      result_B = gfs_secondary_B->PushChunk2Replica(filename, fhandle, client_2.chunk_index, client_2.chunk);
+      std::this_thread::sleep_for(50ms);
+      result_A = gfs_secondary_A->PushChunk2Replica(filename, fhandle, client_1.chunk_index, client_1.chunk);
+    }
+
+    if (result_A["status"] == "success" || result_B["status"] == "success") {
+      result["status"] = "success";
+    }
+  }
+
+  #else // CONCURRENT WRITE
+
+  result_A = gfs_secondary_A->PushChunk2Replica(filename, fhandle, chunkindex, chunk);
+  result_B = gfs_secondary_B->PushChunk2Replica(filename, fhandle, chunkindex, chunk);
+
+  if (result_A["status"] == "success" || result_B["status"] == "success") {
+    result["status"] = "success";
+  }
+
+  #endif
+
+  // reset state
+  client_1 = chunk_data {};
+  client_2 = chunk_data {};
+  count_sleep = 0;
